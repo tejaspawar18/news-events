@@ -1,0 +1,306 @@
+# prometheus_alerts.yml
+# Prometheus alerting rules for MCP API monitoring
+
+groups:
+  - name: mcp_api_alerts
+    rules:
+      # High Error Rate Alerts
+      - alert: HighErrorRate
+        expr: |
+          (
+            rate(http_requests_total{service="mcp_api", status_code=~"5.."}[5m]) /
+            rate(http_requests_total{service="mcp_api"}[5m])
+          ) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          service: mcp_api
+        annotations:
+          summary: "High error rate detected for {{ $labels.endpoint }}"
+          description: |
+            Error rate is {{ $value | humanizePercentage }} for endpoint {{ $labels.endpoint }}
+            over the last 5 minutes. This exceeds the 5% threshold.
+
+      - alert: VeryHighErrorRate
+        expr: |
+          (
+            rate(http_requests_total{service="mcp_api", status_code=~"5.."}[5m]) /
+            rate(http_requests_total{service="mcp_api"}[5m])
+          ) > 0.20
+        for: 1m
+        labels:
+          severity: critical
+          service: mcp_api
+        annotations:
+          summary: "Very high error rate detected for {{ $labels.endpoint }}"
+          description: |
+            Error rate is {{ $value | humanizePercentage }} for endpoint {{ $labels.endpoint }}
+            over the last 5 minutes. This is critically high (>20%).
+
+      # High Latency Alerts
+      - alert: HighLatency
+        expr: |
+          histogram_quantile(0.95, 
+            rate(http_request_duration_seconds_bucket{service="mcp_api"}[5m])
+          ) > 5.0
+        for: 3m
+        labels:
+          severity: warning
+          service: mcp_api
+        annotations:
+          summary: "High latency detected for {{ $labels.endpoint }}"
+          description: |
+            95th percentile latency is {{ $value }}s for endpoint {{ $labels.endpoint }}
+            over the last 5 minutes.
+
+      - alert: VeryHighLatency
+        expr: |
+          histogram_quantile(0.95, 
+            rate(http_request_duration_seconds_bucket{service="mcp_api"}[5m])
+          ) > 15.0
+        for: 1m
+        labels:
+          severity: critical
+          service: mcp_api
+        annotations:
+          summary: "Very high latency detected for {{ $labels.endpoint }}"
+          description: |
+            95th percentile latency is {{ $value }}s for endpoint {{ $labels.endpoint }}
+            over the last 5 minutes. This is critically high.
+
+      # Operation Failure Alerts
+      - alert: OperationFailureSpike
+        expr: |
+          rate(operations_total{service="mcp_api", status="error"}[5m]) > 0.1
+        for: 2m
+        labels:
+          severity: warning
+          service: mcp_api
+        annotations:
+          summary: "High operation failure rate for {{ $labels.operation }}"
+          description: |
+            Operation {{ $labels.operation }} is failing at {{ $value }} failures/second
+            over the last 5 minutes.
+
+      # Database Connection Issues
+      - alert: DatabaseConnectionPoolHigh
+        expr: |
+          (
+            database_connection_pool_active{service="mcp_api"} /
+            database_connection_pool_size{service="mcp_api"}
+          ) > 0.8
+        for: 5m
+        labels:
+          severity: warning
+          service: mcp_api
+        annotations:
+          summary: "Database connection pool utilization high for {{ $labels.database }}"
+          description: |
+            Connection pool for {{ $labels.database }} is {{ $value | humanizePercentage }} utilized.
+            Consider scaling the connection pool or investigating slow queries.
+
+      - alert: DatabaseOperationErrors
+        expr: |
+          rate(database_operations_total{service="mcp_api", status="error"}[5m]) > 0.05
+        for: 2m
+        labels:
+          severity: critical
+          service: mcp_api
+        annotations:
+          summary: "Database operation errors detected for {{ $labels.database }}"
+          description: |
+            Database {{ $labels.database }} is experiencing {{ $value }} errors/second
+            for operation {{ $labels.operation }}.
+
+      # System Resource Alerts
+      - alert: HighCPUUsage
+        expr: system_cpu_usage_percent{service="mcp_api"} > 80
+        for: 10m
+        labels:
+          severity: warning
+          service: mcp_api
+        annotations:
+          summary: "High CPU usage detected"
+          description: |
+            CPU usage is {{ $value }}% for the last 10 minutes.
+
+      - alert: HighMemoryUsage
+        expr: |
+          (
+            system_memory_usage_bytes{service="mcp_api", type="used"} /
+            system_memory_usage_bytes{service="mcp_api", type="total"}
+          ) > 0.85
+        for: 5m
+        labels:
+          severity: warning
+          service: mcp_api
+        annotations:
+          summary: "High memory usage detected"
+          description: |
+            Memory usage is {{ $value | humanizePercentage }} of total available memory.
+
+      - alert: LowDiskSpace
+        expr: |
+          (
+            system_disk_usage_bytes{service="mcp_api", type="free"} /
+            system_disk_usage_bytes{service="mcp_api", type="total"}
+          ) < 0.15
+        for: 5m
+        labels:
+          severity: warning
+          service: mcp_api
+        annotations:
+          summary: "Low disk space"
+          description: |
+            Only {{ $value | humanizePercentage }} disk space remaining.
+
+      # Business Logic Alerts
+      - alert: SearchQualityDegraded
+        expr: |
+          (
+            sum(rate(search_results_returned_sum{service="mcp_api"}[10m])) /
+            sum(rate(search_results_returned_count{service="mcp_api"}[10m]))
+          ) < 1.0
+        for: 5m
+        labels:
+          severity: warning
+          service: mcp_api
+        annotations:
+          summary: "Search quality appears degraded"
+          description: |
+            Average search results returned is {{ $value }}, which may indicate
+            search quality issues or overly restrictive thresholds.
+
+      - alert: EmbeddingGenerationSlow
+        expr: |
+          histogram_quantile(0.95,
+            rate(embedding_generation_duration_seconds_bucket{service="mcp_api"}[5m])
+          ) > 10.0
+        for: 3m
+        labels:
+          severity: warning
+          service: mcp_api
+        annotations:
+          summary: "Embedding generation is slow"
+          description: |
+            95th percentile embedding generation time is {{ $value }}s.
+            This may indicate issues with the embedding service.
+
+      - alert: HighSlowQueryRate
+        expr: |
+          rate(slow_queries_total{service="mcp_api", threshold="5s"}[5m]) > 0.02
+        for: 2m
+        labels:
+          severity: warning
+          service: mcp_api
+        annotations:
+          summary: "High rate of slow queries detected"
+          description: |
+            Slow query rate (>5s) is {{ $value }} queries/second for {{ $labels.endpoint }}.
+
+      - alert: ApplicationStateNotHealthy
+        expr: |
+          application_state{service="mcp_api"} != 1  # 1 = running state
+        for: 1m
+        labels:
+          severity: critical
+          service: mcp_api
+        annotations:
+          summary: "Application is not in healthy state"
+          description: |
+            Application state is not 'running'. Current state may be starting, degraded, stopping, or stopped.
+
+      # Vector Database Specific Alerts
+      - alert: QdrantCollectionSizeStagnant
+        expr: |
+          increase(qdrant_collection_size{service="mcp_api"}[1h]) == 0
+        for: 2h
+        labels:
+          severity: info
+          service: mcp_api
+        annotations:
+          summary: "Qdrant collection size hasn't increased"
+          description: |
+            Collection {{ $labels.collection }} size hasn't increased in the last 2 hours.
+            This might be expected, but could indicate ingestion issues.
+
+      - alert: LowSimilarityScores
+        expr: |
+          histogram_quantile(0.90,
+            rate(vector_similarity_scores_bucket{service="mcp_api"}[10m])
+          ) < 0.3
+        for: 5m
+        labels:
+          severity: warning
+          service: mcp_api
+        annotations:
+          summary: "Vector similarity scores are consistently low"
+          description: |
+            90th percentile similarity score is {{ $value }} for field {{ $labels.field }}.
+            This may indicate poor search quality or inappropriate thresholds.
+
+      # Rate Limiting and Capacity Alerts
+      - alert: HighRequestRate
+        expr: |
+          rate(http_requests_total{service="mcp_api"}[1m]) > 50
+        for: 2m
+        labels:
+          severity: info
+          service: mcp_api
+        annotations:
+          summary: "High request rate detected"
+          description: |
+            Request rate is {{ $value }} requests/second for {{ $labels.endpoint }}.
+            Monitor for potential capacity issues.
+
+      - alert: LargeBatchSizes
+        expr: |
+          histogram_quantile(0.95,
+            rate(batch_size_bucket{service="mcp_api"}[10m])
+          ) > 200
+        for: 5m
+        labels:
+          severity: info
+          service: mcp_api
+        annotations:
+          summary: "Large batch sizes detected"
+          description: |
+            95th percentile batch size is {{ $value }} for operation {{ $labels.operation }}.
+            Large batches may impact performance.
+
+  - name: mcp_api_capacity_planning
+    rules:
+      # Capacity planning metrics (recording rules)
+      - record: mcp_api:request_rate_5m
+        expr: |
+          rate(http_requests_total{service="mcp_api"}[5m])
+
+      - record: mcp_api:error_rate_5m
+        expr: |
+          rate(http_requests_total{service="mcp_api", status_code=~"5.."}[5m]) /
+          rate(http_requests_total{service="mcp_api"}[5m])
+
+      - record: mcp_api:p95_latency_5m
+        expr: |
+          histogram_quantile(0.95,
+            rate(http_request_duration_seconds_bucket{service="mcp_api"}[5m])
+          )
+
+      - record: mcp_api:search_success_rate_10m
+        expr: |
+          (
+            sum(rate(operations_total{service="mcp_api", operation=~".*search.*", status="success"}[10m])) /
+            sum(rate(operations_total{service="mcp_api", operation=~".*search.*"}[10m]))
+          )
+
+      - record: mcp_api:avg_documents_per_batch_1h
+        expr: |
+          sum(rate(batch_size_sum{service="mcp_api"}[1h])) /
+          sum(rate(batch_size_count{service="mcp_api"}[1h]))
+
+      - record: mcp_api:system_resource_usage
+        expr: |
+          (
+            system_memory_usage_bytes{service="mcp_api", type="used"} /
+            system_memory_usage_bytes{service="mcp_api", type="total"}
+          )

@@ -1,0 +1,12 @@
+**/__pycache__/
+/venv/
+.env
+/.venv/
+**/.vscode/
+logs.txt
+/logs
+.env.production
+.env.staging
+/logs_staging
+/logs_production
+/mcp_api/core/sparse_vec.py

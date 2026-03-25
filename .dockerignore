@@ -1,0 +1,38 @@
+# Ignore Python cache and logs
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.log
+
+# Ignore large model directories
+multilingual-e5-large/
+models/
+*.bin
+*.pt
+
+# Ignore Conda/env folders
+mcp_env/
+.env/
+*.env
+
+# Ignore Git
+.git/
+.gitignore
+
+# Ignore data files
+*.csv
+*.tsv
+*.xlsx
+*.json
+*.db
+
+# Ignore other unneeded files
+*.zip
+*.tar
+*.tar.gz
+*.rar
+
+# Ignore Docker artifacts
+docker-compose.override.yml
+Dockerfile.*
